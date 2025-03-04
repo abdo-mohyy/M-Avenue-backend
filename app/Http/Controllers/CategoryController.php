@@ -25,27 +25,26 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'title' => 'required',
-            'image' => 'required|image'
+            'name' => 'required|string|max:255',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
-        $category = new Category();
-        $category->title = $request->title;
+        $imagePath = null;
 
         if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $filename = time() . '.' . $file->getClientOriginalExtension();
-
-            // حفظ الصورة في storage
-            $path = $file->storeAs('public/images', $filename);
-
-            // تخزين رابط الوصول للصورة
-            $category->image = Storage::url($path);
+            $path = $request->file('image')->store('categories', 'public');
+            $imagePath = asset('storage/' . $path); // تصحيح الرابط لاستخدام asset()
         }
 
-        $category->save();
+        $category = Category::create([
+            'name' => $request->name,
+            'image' => $imagePath, // تخزين الرابط الصحيح
+        ]);
 
-        return response()->json(['message' => 'Category created successfully', 'category' => $category], 201);
+        return response()->json([
+            'message' => 'Category created successfully',
+            'category' => $category,
+        ], 201);
     }
 
     /**

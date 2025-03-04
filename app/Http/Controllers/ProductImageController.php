@@ -19,8 +19,8 @@ class ProductImageController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('products', 'public'); // تخزين الصورة في storage/app/public/products
-            $imageUrl = asset('storage/' . $path); // استخدام asset() للحصول على الرابط الصحيح
+            $path = $request->file('image')->store('public/products'); // احفظ الصورة في public/products مباشرة
+            $imageUrl = asset(str_replace('public/', 'storage/', $path)); // توليد الرابط الصحيح
 
             $productImage = ProductImage::create([
                 'product_id' => $request->product_id,
