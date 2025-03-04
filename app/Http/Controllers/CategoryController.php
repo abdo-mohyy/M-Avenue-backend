@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
-
+use Illuminate\Support\Facades\Storage;
 class CategoryController extends Controller
 {
     /**
@@ -42,14 +42,18 @@ class CategoryController extends Controller
 
         if ($request->hasFile('image')) {
             $file = $request->file('image');
-            $filename = time() . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('images'), $filename);
-            $category->image = url('images/' . $filename);
+            $filename = date('YmdHis') . '.' . $file->getClientOriginalExtension();
+
+            // حفظ الصورة داخل storage/app/public/images
+            $path = $file->storeAs('public/images', $filename);
+
+            // تخزين رابط الوصول للصورة
+            $category->image = Storage::url($path);
         }
 
         $category->save();
 
-        return response()->json(['message' => 'Category created successfully', 'category' => $category], 201);
+        return response()->json(['message' => 'Category created successfully']);
     }
 
     /**
