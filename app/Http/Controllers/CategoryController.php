@@ -32,20 +32,24 @@ class CategoryController extends Controller
      */
     public function store(Request $request)
     {
-        $category = new Category();
         $request->validate([
             'title' => 'required',
             'image' => 'required|image'
         ]);
+
+        $category = new Category();
         $category->title = $request->title;
+
         if ($request->hasFile('image')) {
             $file = $request->file('image');
-            $filename = date('YmdHis') . '.' . $file->getClientOriginalExtension();
-            $path = 'images';
-            $file->move($path, $filename);
-            $category->image = url('/') . '/images/' . $filename;
+            $filename = time() . '.' . $file->getClientOriginalExtension();
+            $file->move(public_path('images'), $filename);
+            $category->image = url('images/' . $filename);
         }
+
         $category->save();
+
+        return response()->json(['message' => 'Category created successfully', 'category' => $category], 201);
     }
 
     /**
@@ -60,26 +64,33 @@ class CategoryController extends Controller
      * Show the form for editing the specified resource.
      */
     public function edit(Category $category, $id, Request $request)
-    {
-        $category = Category::findOrFail($id);
-        $request->validate([
-            'title' => 'required',
-        ]);
-        $category->title = $request->title;
-        if ($request->hasFile('image')) {
-            $oldpath = public_path() . '/images/' . substr($category['image'], strrpos($category['image'], '/') + 1);
+{
+    $category = Category::findOrFail($id);
 
-            if (File::exists($oldpath)) {
-                File::delete($oldpath);
-            }
-            $file = $request->file('image');
-            $filename = date('YmdHis') . '.' . $file->getClientOriginalExtension();
-            $category->image = url('/') . '/images/' . $filename;
-            $path = 'images';
-            $file->move($path, $filename);
+    $request->validate([
+        'title' => 'required',
+    ]);
+
+    $category->title = $request->title;
+
+    if ($request->hasFile('image')) {
+        // حذف الصورة القديمة إذا كانت موجودة
+        $oldpath = public_path('images/' . basename($category->image));
+        if (File::exists($oldpath)) {
+            File::delete($oldpath);
         }
-        $category->save();
+
+        // رفع الصورة الجديدة
+        $file = $request->file('image');
+        $filename = time() . '.' . $file->getClientOriginalExtension();
+        $file->move(public_path('images'), $filename);
+        $category->image = url('images/' . $filename);
     }
+
+    $category->save();
+
+    return response()->json(['message' => 'Category updated successfully', 'category' => $category], 200);
+}
 
     /**
      * Update the specified resource in storage.
@@ -102,13 +113,17 @@ class CategoryController extends Controller
      * Remove the specified resource from storage.
      */
     public function destroy(Category $category, $id)
-    {
-        $category = Category::findOrFail($id);
-        $path = public_path() . '/images/' . substr($category['image'], strrpos($category['image'], '/') + 1);
+{
+    $category = Category::findOrFail($id);
 
-        if (File::exists($path)) {
-            File::delete($path);
-        }
-        $category->delete();
+    // حذف الصورة إذا كانت موجودة
+    $path = public_path('images/' . basename($category->image));
+    if (File::exists($path)) {
+        File::delete($path);
     }
+
+    $category->delete();
+
+    return response()->json(['message' => 'Category deleted successfully'], 200);
+}
 }
