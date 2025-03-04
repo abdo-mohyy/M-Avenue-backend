@@ -5,67 +5,57 @@ namespace App\Http\Controllers;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
+use Laravel\Passport\RefreshTokenRepository;
 use Laravel\Passport\TokenRepository;
 
 class AuthController extends Controller
 {
-    /**
-     * Register a new user.
-     */
+    // Register Method
+
     public function Register(RegisterRequest $request)
     {
-        $validatedData = $request->validated();
-
+        $request->validated();
         $user = User::create([
-            'name' => $validatedData['name'],
-            'email' => $validatedData['email'],
-            'password' => Hash::make($validatedData['password']),
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
         ]);
-
-        $token = $user->createToken('accessToken')->accessToken;
-
+        $token = $user->createToken('token')->accessToken;
+        $refreshToken = $user->createToken('authTokenRefresh')->accessToken;
         return response()->json([
-            'message' => 'User registered successfully',
             'user' => $user,
             'token' => $token,
-        ], 201);
+
+        ], 200);
     }
 
-    /**
-     * Login an existing user.
-     */
+    // Login Method
     public function Login(LoginRequest $request)
     {
-        $validatedData = $request->validated();
+        $request->validated();
+        $credentials = request(['email', 'password']);
 
-        if (!Auth::attempt(['email' => $validatedData['email'], 'password' => $validatedData['password']])) {
+        if (!Auth::attempt($credentials)) {
             return response()->json(['error' => 'Invalid credentials'], 401);
         }
 
-        $user = Auth::user();
-        $token = $user->createToken('accessToken')->accessToken;
+        $user = $request->user();
+        $token = $user->createToken('token')->accessToken;
 
         return response()->json([
-            'message' => 'Login successful',
             'user' => $user,
             'token' => $token,
         ], 200);
     }
 
-    /**
-     * Logout user and revoke access tokens.
-     */
-    public function logout(Request $request, TokenRepository $tokenRepository)
+    // Logout Method
+    public function logout(Request $request)
     {
-        $user = Auth::user();
-
-        if ($user) {
-            $tokenRepository->revokeAccessToken($user->token()->id);
-        }
-
+        $request->user()->token()->revoke();
         return response()->json(['message' => 'Successfully logged out'], 200);
     }
 }

@@ -2,112 +2,79 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\RegisterRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
-class UsersController extends Controller
+class UsersContoller extends Controller
 {
-    /**
-     * Get paginated users.
-     */
     public function GetUsers(Request $request)
     {
         $users = User::paginate($request->input('limit', 10));
-        return response()->json($users);
+        return $users;
     }
-
-    /**
-     * Get authenticated user.
-     */
+    // Get Auth User
     public function authUser()
     {
-        return response()->json(Auth::user());
+        return Auth::user();
     }
 
-    /**
-     * Get a specific user by ID.
-     */
+    // Get Specific User
     public function getUser($id)
     {
-        $user = User::findOrFail($id);
-        return response()->json($user);
+        return User::findOrFail($id);
     }
 
-    /**
-     * Add a new user.
-     */
+    // Add User
+
     public function addUser(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6',
-            'role' => 'required|string',
+            'name' => 'required',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|min:6',
+            'role' => 'required'
         ]);
-
-        $user = User::create([
+        $user =  DB::table('users')->insert([
             'name' => $request->name,
             'email' => $request->email,
             'role' => $request->role,
             'password' => Hash::make($request->password),
         ]);
-
         return response()->json([
-            'message' => 'User created successfully',
             'user' => $user,
-        ], 201);
+        ], 200);
     }
 
-    /**
-     * Edit user details.
-     */
+    // Edit User
     public function editUser(Request $request, $id)
     {
-        $user = User::findOrFail($id);
-
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => "required|email|unique:users,email,$id",
-            'role' => 'required|string',
+            'name' => 'required',
+            'email' => 'required|email',
+            'role' => 'required',
         ]);
-
-        $user->update([
-            'name' => $request->name,
-            'email' => $request->email,
-            'role' => $request->role,
-        ]);
-
-        return response()->json([
-            'message' => 'User updated successfully',
-            'user' => $user,
-        ], 200);
+        $user = User::findOrFail($id);
+        $user->name = $request->name;
+        $user->email = $request->email;
+        $user->role = $request->role;
+        $user->save();
     }
 
-    /**
-     * Search for users by name or email.
-     */
+    // Search On Users
     public function search(Request $request)
-    {
-        $query = $request->input('query'); // تغيير 'title' إلى 'query' لأنه بحث عام
-        $results = User::where('name', 'like', "%$query%")
-            ->orWhere('email', 'like', "%$query%")
-            ->get();
+     {
+            $query = $request->input('title');
+            $results = User::where('name', 'like', "%$query%")->get();
+            return response()->json($results);
+     }
 
-        return response()->json($results);
-    }
-
-    /**
-     * Delete user.
-     */
+    // Delete User
     public function destroy($id)
     {
-        $user = User::findOrFail($id);
-        $user->delete();
-
-        return response()->json([
-            'message' => 'User deleted successfully',
-        ], 200);
+        return  User::findOrFail($id)->delete();
     }
 }
