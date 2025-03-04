@@ -4,81 +4,52 @@ namespace App\Http\Controllers;
 
 use App\Models\ProductImage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 
 class ProductImageController extends Controller
 {
     /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
+     * Store a newly created image.
      */
     public function store(Request $request)
     {
-        $product = new ProductImage();
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'product_id' => 'required|exists:products,id',
+        ]);
+
         if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $filename = date('YmdHis') . '.' . $file->getClientOriginalExtension();
-            $product->image = url('/') . '/images/' . $filename;
-            $path = 'images';
-            $file->move($path, $filename);
+            $path = $request->file('image')->store('products', 'public'); // تخزين الصورة في storage/app/public/products
+            $imageUrl = Storage::url($path); // الحصول على رابط الصورة
+
+            $productImage = ProductImage::create([
+                'product_id' => $request->product_id,
+                'image' => $imageUrl,
+            ]);
+
+            return response()->json([
+                'message' => 'Image uploaded successfully',
+                'image' => $productImage,
+            ], 201);
         }
 
-        $product->product_id = $request->product_id;
-        $product->save();
-        return $product;
+        return response()->json(['error' => 'No image uploaded'], 400);
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(ProductImage $productImage)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(ProductImage $productImage)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, ProductImage $productImage)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
+     * Remove the specified image from storage.
      */
     public function destroy($id)
     {
         $image = ProductImage::findOrFail($id);
-        $path = public_path() . '/images/' . substr($image['image'], strrpos($image['image'], '/') + 1);
 
-        if (File::exists($path)) {
-            File::delete($path);
+        // حذف الصورة من التخزين
+        if ($image->image) {
+            Storage::delete(str_replace('/storage/', '', $image->image)); // حذف الملف من storage
         }
-        DB::table('product_images')->where('id', '=', $id)->delete();
+
+        $image->delete();
+
+        return response()->json(['message' => 'Image deleted successfully'], 200);
     }
 }

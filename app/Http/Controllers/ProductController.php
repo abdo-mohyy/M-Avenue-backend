@@ -4,118 +4,111 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductImage;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display a listing of the products.
      */
     public function index(Request $request)
     {
-        $allProducts = Product::with('Images')->get();
-        $products = Product::with('Images')->where('status', '=', 'published')->paginate($request->input('limit', 10));
-        $finalResult = $request->input('limit') ? $products : $allProducts;
-        return $finalResult;
+        $limit = $request->input('limit', 10);
+        $products = Product::with('Images')->where('status', 'published')->paginate($limit);
+
+        return response()->json($products);
     }
 
-    public function getLastSaleProducts(Request $request)
+    public function getLastSaleProducts()
     {
-        $products = Product::with('Images')->where('status', '=', 'published')->where('discount', '>', '0')->latest()->take(20)->get();
-        return $products;
+        $products = Product::with('Images')->where('status', 'published')
+            ->where('discount', '>', 0)
+            ->latest()->take(20)->get();
+
+        return response()->json($products);
     }
 
-    public function getLatest(Request $request)
+    public function getLatest()
     {
-        $products = Product::with('Images')->where('status', '=', 'published')->where('discount', '=', 0)->where('rating', '<', '5')->latest()->take(60)->get();
-        return $products;
-    }
-    // public function getLatest(Request $request)
-    // {
-    //     $products = Product::with('Images')->where('status', '=', 'published')->latest()->take(60)->get();
-    //     return $products;
-    // }
+        $products = Product::with('Images')->where('status', 'published')
+            ->where('discount', 0)
+            ->where('rating', '<', 5)
+            ->latest()->take(60)->get();
 
-    public function getTopRated(Request $request)
-    {
-        $products = Product::with('Images')->where('status', '=', 'published')->where('rating', '=', '5')->latest()->take(32)->get();
-        return $products;
+        return response()->json($products);
     }
-    // public function getTopRated(Request $request)
-    // {
-    //     $products = Product::with('Images')->where('status', '=', 'published')->where('rating', '=', '5')->latest()->take(32)->get();
-    //     return $products;
-    // }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function getTopRated()
     {
-        //
+        $products = Product::with('Images')->where('status', 'published')
+            ->where('rating', 5)
+            ->latest()->take(32)->get();
+
+        return response()->json($products);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a newly created product.
      */
     public function store(Request $request)
     {
-        $product = new Product();
         $request->validate([
             'title' => 'required',
             'description' => 'required',
-            'price' => 'required | numeric',
-            'discount' => 'required | numeric',
+            'price' => 'required|numeric',
+            'discount' => 'required|numeric',
             'About' => 'required',
-            'stock' => 'required | numeric'
+            'stock' => 'required|numeric',
         ]);
-        $productCreated = $product->create([
+
+        $product = Product::create([
             'category' => $request->category,
             'title' => $request->title,
             'description' => $request->description,
             'price' => $request->price,
             'About' => $request->About,
             'discount' => $request->discount,
-            'stock' => $request->stock
-
+            'stock' => $request->stock,
+            'status' => 'published',
         ]);
-        return $productCreated;
+
+        return response()->json(['message' => 'Product created successfully', 'product' => $product], 201);
     }
 
     /**
-     * Display the specified resource.
+     * Display a specific product.
      */
     public function show($id)
     {
-        return Product::where('id', $id)->with('Images')->where('status', '=', 'published')->get();
+        $product = Product::where('id', $id)->with('Images')->where('status', 'published')->first();
+
+        if (!$product) {
+            return response()->json(['error' => 'Product not found'], 404);
+        }
+
+        return response()->json($product);
     }
 
     /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Product $product)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
+     * Update an existing product.
      */
     public function update(Request $request, $id)
     {
         $product = Product::findOrFail($id);
+
         $request->validate([
             'category' => 'required',
             'title' => 'required',
             'description' => 'required',
-            'price' => 'required | numeric',
-            'discount' => 'required | numeric',
-            'stock' => 'required | numeric',
-            'About' => 'required'
+            'price' => 'required|numeric',
+            'discount' => 'required|numeric',
+            'stock' => 'required|numeric',
+            'About' => 'required',
         ]);
+
         $product->update([
             'category' => $request->category,
             'title' => $request->title,
@@ -123,49 +116,56 @@ class ProductController extends Controller
             'price' => $request->price,
             'About' => $request->About,
             'discount' => $request->discount,
-            'stock' => $request->stock
-
+            'stock' => $request->stock,
+            'status' => 'published',
         ]);
-        $product->status = 'published';
-        $product->save();
-        $productId = $product->id;
+
+        // Handle images upload (Use Storage for Railway instead of local files)
         if ($request->hasFile('images')) {
-            $files = $request->file("images");
-            $i = 0;
-            foreach ($files as $file) {
-                $i = $i + 1;
-                $image = new ProductImage();
-                $image->product_id = $productId;
-                $filename = date('YmdHis') . $i . '.' . $file->getClientOriginalExtension();
-                $path = 'images';
-                $file->move($path, $filename);
-                $image->image = url('/') . '/images/' . $filename;
-                $image->save();
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('products', 'public'); // Store in `storage/app/public/products`
+                $imageUrl = Storage::url($path); // Get the URL
+
+                ProductImage::create([
+                    'product_id' => $product->id,
+                    'image' => $imageUrl,
+                ]);
             }
         }
+
+        return response()->json(['message' => 'Product updated successfully', 'product' => $product], 200);
     }
 
-    // Search On Users
+    /**
+     * Search products by title.
+     */
     public function search(Request $request)
     {
         $query = $request->input('title');
         $results = Product::with('Images')->where('title', 'like', "%$query%")->get();
+
         return response()->json($results);
     }
 
-
     /**
-     * Remove the specified resource from storage.
+     * Remove a product from storage.
      */
     public function destroy($id)
     {
-        $productImages = ProductImage::where('product_id', '=', $id)->get();
-        foreach ($productImages as $productImage) {
-            $path = public_path() . '/images/' . substr($productImage['image'], strrpos($productImage['image'], '/') + 1);
-            if (File::exists($path)) {
-                File::delete($path);
-            }
+        $product = Product::find($id);
+        if (!$product) {
+            return response()->json(['error' => 'Product not found'], 404);
         }
-        DB::table('products')->where('id', '=', $id)->delete();
+
+        // Delete associated images
+        $productImages = ProductImage::where('product_id', $id)->get();
+        foreach ($productImages as $image) {
+            Storage::delete(str_replace('/storage/', '', $image->image)); // Delete from storage
+            $image->delete();
+        }
+
+        $product->delete();
+
+        return response()->json(['message' => 'Product deleted successfully'], 200);
     }
 }
