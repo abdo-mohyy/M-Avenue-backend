@@ -19,8 +19,8 @@ class ProductImageController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('public/products'); // احفظ الصورة في public/products مباشرة
-            $imageUrl = asset(str_replace('public/', 'storage/', $path)); // توليد الرابط الصحيح
+            $path = $request->file('image')->store('products', 'public'); // تخزين الصورة في storage/app/public/products
+            $imageUrl = Storage::url($path); // الحصول على رابط الصورة
 
             $productImage = ProductImage::create([
                 'product_id' => $request->product_id,
@@ -43,10 +43,9 @@ class ProductImageController extends Controller
     {
         $image = ProductImage::findOrFail($id);
 
-        // حذف الصورة من التخزين بشكل صحيح
+        // حذف الصورة من التخزين
         if ($image->image) {
-            $path = str_replace(asset('storage/'), '', $image->image);
-            Storage::disk('public')->delete($path);
+            Storage::delete(str_replace('/storage/', '', $image->image)); // حذف الملف من storage
         }
 
         $image->delete();
